@@ -23,5 +23,12 @@ export default defineConfig([
       },
       globals: globals.browser,
     },
+    rules: {
+      'no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^[A-Z_]',
+      }],
+      'react-refresh/only-export-components': 'off',
+    },
   },
 ])

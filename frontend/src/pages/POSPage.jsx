@@ -126,7 +126,7 @@ export default function POSPage() {
       const res = await api.get(`/orders/${placedOrder._id}/receipt`, { responseType: "blob" })
       const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }))
       window.open(url)
-    } catch (error) {
+    } catch {
       toast.error("Failed to generate receipt")
     }
   }

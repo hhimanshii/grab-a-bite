@@ -21,37 +21,37 @@ export default function OwnerReportsPage() {
 
   // Data
   const [salesSummary, setSalesSummary] = useState({ totalOrders: 0, totalRevenue: 0 })
-  const [topItems, setTopItems] = useState<any[]>([])
-  const [staffPerformance, setStaffPerformance] = useState<any[]>([])
+  const [topItems, setTopItems] = useState([])
+  const [staffPerformance, setStaffPerformance] = useState([])
 
   useEffect(() => {
+    const fetchReportData = async () => {
+      try {
+        setLoading(true)
+        const queryParams = new URLSearchParams()
+        if (startDate) queryParams.append("startDate", startDate)
+        if (endDate) queryParams.append("endDate", endDate)
+
+        const queryStr = queryParams.toString()
+
+        const [salesRes, itemsRes, staffRes] = await Promise.all([
+          api.get(`/reports/sales?${queryStr}`),
+          api.get(`/reports/top-items?${queryStr}`),
+          api.get(`/reports/staff?${queryStr}`)
+        ])
+
+        setSalesSummary(salesRes.data.data || salesRes.data || { totalOrders: 0, totalRevenue: 0 })
+        setTopItems(itemsRes.data.data || itemsRes.data || [])
+        setStaffPerformance(staffRes.data.data || staffRes.data || [])
+      } catch (error) {
+        toast.error(error.response?.data?.message || error.message || "Failed to fetch report data")
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchReportData()
   }, [startDate, endDate])
-
-  const fetchReportData = async () => {
-    try {
-      setLoading(true)
-      const queryParams = new URLSearchParams()
-      if (startDate) queryParams.append("startDate", startDate)
-      if (endDate) queryParams.append("endDate", endDate)
-      
-      const queryStr = queryParams.toString()
-
-      const [salesRes, itemsRes, staffRes] = await Promise.all([
-        api.get(`/reports/sales?${queryStr}`),
-        api.get(`/reports/top-items?${queryStr}`),
-        api.get(`/reports/staff?${queryStr}`)
-      ])
-
-      setSalesSummary(salesRes.data.data || salesRes.data || { totalOrders: 0, totalRevenue: 0 })
-      setTopItems(itemsRes.data.data || itemsRes.data || [])
-      setStaffPerformance(staffRes.data.data || staffRes.data || [])
-    } catch (error) {
-      toast.error(error.response?.data?.message || error.message || "Failed to fetch report data")
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <div className="space-y-6">

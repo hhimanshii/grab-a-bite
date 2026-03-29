@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Plus, Edit, Trash2, MoreHorizontal } from "lucide-react"
+import { Plus, Edit, Trash2, MoreHorizontal, Eye, EyeOff } from "lucide-react"
 import api from "@/lib/axios"
 
 import { Button } from "@/components/ui/button"
@@ -18,11 +18,17 @@ export default function AdminUsersPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [roleFilter, setRoleFilter] = useState("all")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
-    role: "owner",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    role: "",
     restaurantId: "none",
   })
 
@@ -46,32 +52,68 @@ export default function AdminUsersPage() {
     }
   }
 
+  const resetPasswordVisibility = () => {
+    setShowPassword(false)
+    setShowConfirmPassword(false)
+  }
+
+  const handleDialogOpenChange = (open, details) => {
+    if (open) {
+      setIsDialogOpen(true)
+      return
+    }
+
+    if (!details || details.reason === "close-press") {
+      setIsDialogOpen(false)
+      resetPasswordVisibility()
+    }
+  }
+
   const handleOpenDialog = (user) => {
     if (user) {
       setEditingId(user._id)
       setFormData({
         name: user.name || "",
         phone: user.phone || "",
+        email: user.email || "",
+        password: "",
+        confirmPassword: "",
         role: user.role || "owner",
         restaurantId: user.restaurantId?._id || user.restaurantId || "none",
       })
     } else {
       setEditingId(null)
-      setFormData({ name: "", phone: "", role: "owner", restaurantId: "none" })
+      setFormData({ name: "", phone: "", email: "", password: "", confirmPassword: "", role: "", restaurantId: "none" })
     }
+    resetPasswordVisibility()
     setIsDialogOpen(true)
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!formData.name || !formData.phone) return toast.error("Name and Phone are required")
+    if (!formData.role) return toast.error("Please select a role")
+    if (!editingId && !formData.password) return toast.error("Initial password is required")
+    if (formData.password && formData.password.length < 6) return toast.error("Password must be at least 6 characters long")
+    if (formData.password !== formData.confirmPassword) return toast.error("Password and confirm password must match")
     if (formData.role !== "superadmin" && formData.restaurantId === "none") {
       return toast.error("Please select a restaurant for non-superadmin users")
     }
 
     setIsSubmitting(true)
     try {
-      const payload = { ...formData, restaurantId: formData.restaurantId === "none" ? null : formData.restaurantId }
+      const payload = {
+        name: formData.name,
+        phone: formData.phone,
+        email: formData.email || null,
+        role: formData.role,
+        restaurantId: formData.restaurantId === "none" ? null : formData.restaurantId,
+      }
+
+      if (formData.password) {
+        payload.password = formData.password
+      }
+
       if (editingId) {
         await api.put(`/admin/users/${editingId}`, payload)
         toast.success("User updated successfully")
@@ -80,6 +122,7 @@ export default function AdminUsersPage() {
         toast.success("User created successfully")
       }
       setIsDialogOpen(false)
+      resetPasswordVisibility()
       fetchData()
     } catch (error) {
       console.error(error)
@@ -107,11 +150,34 @@ export default function AdminUsersPage() {
     return r ? r.name : "N/A"
   }
 
+  const restaurantItems = [
+    { value: "none", label: "-- Select Restaurant --" },
+    ...restaurants.map((restaurant) => ({
+      value: restaurant._id,
+      label: restaurant.name,
+    })),
+  ]
+
+  const roleItems = [
+    { value: "all", label: "All Roles" },
+    { value: "superadmin", label: "Super Admin" },
+    { value: "owner", label: "Owner" },
+    { value: "manager", label: "Manager" },
+    { value: "cashier", label: "Cashier" },
+    { value: "waiter", label: "Waiter" },
+  ]
+
+  const filteredUsers = users.filter((user) => roleFilter === "all" || user.role === roleFilter)
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight font-heading">Users Management</h2>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={handleDialogOpenChange}
+          disablePointerDismissal
+        >
           <DialogTrigger
             render={
               <Button onClick={() => handleOpenDialog()} className="gap-2 font-outfit">
@@ -123,11 +189,13 @@ export default function AdminUsersPage() {
             <DialogHeader>
               <DialogTitle>{editingId ? "Edit User" : "Add User"}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+            <form onSubmit={handleSubmit} className="space-y-4 pt-4" autoComplete="off">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
+                  name="user-name"
+                  autoComplete="off"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. John Doe"
@@ -137,21 +205,92 @@ export default function AdminUsersPage() {
                 <Label htmlFor="phone">Phone Number (Login ID)</Label>
                 <Input
                   id="phone"
+                  name="user-phone"
+                  autoComplete="off"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="e.g. 9876543210"
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="email">Email (Optional)</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  name="user-email"
+                  autoComplete="off"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="e.g. john@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">
+                  {editingId ? "New Password (Optional)" : "Initial Password"}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    name="user-password"
+                    autoComplete="new-password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder={editingId ? "Leave blank to keep current password" : "At least 6 characters"}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword((value) => !value)}
+                  >
+                    {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">
+                  {editingId ? "Confirm New Password" : "Confirm Password"}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    name="user-confirm-password"
+                    autoComplete="new-password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    placeholder={editingId ? "Repeat the new password" : "Repeat the password"}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowConfirmPassword((value) => !value)}
+                  >
+                    {showConfirmPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="role">Role</Label>
                 <Select
                   value={formData.role}
-                  onValueChange={(value) => { if (value) setFormData({ ...formData, role: value }) }}
+                  onValueChange={(value) => {
+                    if (!value) return
+
+                    setFormData({
+                      ...formData,
+                      role: value,
+                      restaurantId: value === "superadmin" ? "none" : formData.restaurantId,
+                    })
+                  }}
                 >
                   <SelectTrigger id="role">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="unselected" disabled label="Select role">Select role</SelectItem>
                     <SelectItem value="superadmin">Super Admin</SelectItem>
                     <SelectItem value="owner">Owner</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
@@ -161,10 +300,11 @@ export default function AdminUsersPage() {
                 </Select>
               </div>
               
-              {formData.role !== "superadmin" && (
+              {formData.role && formData.role !== "superadmin" && (
                 <div className="space-y-2">
                   <Label htmlFor="restaurant">Restaurant</Label>
                   <Select
+                    items={restaurantItems}
                     value={formData.restaurantId}
                     onValueChange={(value) => { if (value) setFormData({ ...formData, restaurantId: value }) }}
                   >
@@ -172,9 +312,9 @@ export default function AdminUsersPage() {
                       <SelectValue placeholder="Select restaurant" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">-- Select Restaurant --</SelectItem>
+                      <SelectItem value="none" label="-- Select Restaurant --">-- Select Restaurant --</SelectItem>
                       {restaurants.map(r => (
-                        <SelectItem key={r._id} value={r._id}>{r.name}</SelectItem>
+                        <SelectItem key={r._id} value={r._id} label={r.name}>{r.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -189,6 +329,27 @@ export default function AdminUsersPage() {
             </form>
           </DialogContent>
         </Dialog>
+      </div>
+
+      <div className="w-full max-w-[220px]">
+        <Label className="mb-2 block">Filter by Role</Label>
+        <Select
+          items={roleItems}
+          value={roleFilter}
+          onValueChange={(value) => { if (value) setRoleFilter(value) }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="All Roles" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" label="All Roles">All Roles</SelectItem>
+            <SelectItem value="superadmin" label="Super Admin">Super Admin</SelectItem>
+            <SelectItem value="owner" label="Owner">Owner</SelectItem>
+            <SelectItem value="manager" label="Manager">Manager</SelectItem>
+            <SelectItem value="cashier" label="Cashier">Cashier</SelectItem>
+            <SelectItem value="waiter" label="Waiter">Waiter</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="rounded-md border bg-card">
@@ -209,14 +370,14 @@ export default function AdminUsersPage() {
                   Loading users...
                 </TableCell>
               </TableRow>
-            ) : users.length === 0 ? (
+            ) : filteredUsers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                   No users found.
                 </TableCell>
               </TableRow>
             ) : (
-              users.map((user) => (
+              filteredUsers.map((user) => (
                 <TableRow key={user._id}>
                   <TableCell className="font-medium text-heading font-bold">{user.name}</TableCell>
                   <TableCell>{user.phone}</TableCell>

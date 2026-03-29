@@ -69,6 +69,17 @@ export default function OwnerMenuPage() {
     setIsDialogOpen(true)
   }
 
+  const handleDialogOpenChange = (open, details) => {
+    if (open) {
+      setIsDialogOpen(true)
+      return
+    }
+
+    if (!details || details.reason === "close-press") {
+      setIsDialogOpen(false)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!formData.name || formData.price <= 0) return toast.error("Name and valid price are required")
@@ -98,7 +109,7 @@ export default function OwnerMenuPage() {
       await api.delete(`/menu/${id}`)
       toast.success("Item deleted")
       fetchMenu()
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete item")
     }
   }
@@ -108,7 +119,7 @@ export default function OwnerMenuPage() {
       await api.put(`/menu/${item._id}`, { ...item, isAvailable: !item.isAvailable })
       toast.success(`Marked as ${!item.isAvailable ? 'Available' : 'Unavailable'}`)
       fetchMenu()
-    } catch (error) {
+    } catch {
       toast.error("Failed to update availability")
     }
   }
@@ -117,7 +128,11 @@ export default function OwnerMenuPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight font-heading">Menu Management</h2>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={handleDialogOpenChange}
+          disablePointerDismissal
+        >
           <DialogTrigger
             render={
               <Button onClick={() => handleOpenDialog()} className="gap-2 font-outfit">

@@ -13,6 +13,7 @@ import OwnerMenuPage from "@/pages/OwnerMenuPage"
 import OwnerStaffPage from "@/pages/OwnerStaffPage"
 import OwnerOrdersPage from "@/pages/OwnerOrdersPage"
 import OwnerReportsPage from "@/pages/OwnerReportsPage"
+import AccountSettingsPage from "@/pages/AccountSettingsPage"
 import { Toaster } from "sonner"
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
           <Route path="users" element={<AdminUsersPage />} />
           <Route path="orders" element={<AdminOrdersPage />} />
           <Route path="reports" element={<AdminReportsPage />} />
+          <Route path="settings" element={<AccountSettingsPage />} />
         </Route>
         
         {/* Protected Owner Routes */}
@@ -44,6 +46,7 @@ function App() {
           <Route path="staff" element={<OwnerStaffPage />} />
           <Route path="orders" element={<OwnerOrdersPage />} />
           <Route path="reports" element={<OwnerReportsPage />} />
+          <Route path="settings" element={<AccountSettingsPage />} />
         </Route>
         
         {/* Default Redirect */}

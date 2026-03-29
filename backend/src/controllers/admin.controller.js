@@ -2,7 +2,15 @@ const Restaurant = require('../models/restaurantModel');
 const User = require('../models/userModel');
 const MenuItem = require('../models/menuItemModel');
 const Order = require('../models/orderModel');
+const { validatePassword } = require('./auth.controller');
 // PDF generation for receipts will be handled later in the order or admin controller (in a helper function)
+
+const sanitizeUser = (user) => {
+  const userObject = user.toObject ? user.toObject() : { ...user };
+  delete userObject.password;
+  delete userObject.__v;
+  return userObject;
+};
 
 // ---------------- RESTAURANTS ----------------
 exports.getRestaurants = async (req, res) => {
@@ -73,21 +81,71 @@ exports.getUsers = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    // Body: { name, phone, role: "owner", restaurantId }
-    const user = await User.create(req.body);
-    res.status(201).json({ success: true, data: user });
+    const { name, phone, email, password, role, restaurantId, isActive } = req.body;
+
+    if (!name || !phone || !role || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, phone, role, and password are required',
+      });
+    }
+
+    const passwordValidationError = validatePassword(password);
+    if (passwordValidationError) {
+      return res.status(400).json({ success: false, message: passwordValidationError });
+    }
+
+    const user = await User.create({
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email ? email.trim().toLowerCase() : undefined,
+      password,
+      role,
+      restaurantId: restaurantId || undefined,
+      isActive,
+    });
+
+    res.status(201).json({ success: true, data: sanitizeUser(user) });
   } catch (error) {
-    if (error.code === 11000) return res.status(400).json({ success: false, message: 'Phone number already exists' });
+    if (error.code === 11000) {
+      return res.status(400).json({ success: false, message: 'Phone number or email already exists' });
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 exports.updateUser = async (req, res) => {
   try {
-    const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const user = await User.findById(req.params.id).select('+password');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    res.status(200).json({ success: true, data: user });
+
+    const { password, email, phone, ...rest } = req.body;
+
+    if (password) {
+      const passwordValidationError = validatePassword(password);
+      if (passwordValidationError) {
+        return res.status(400).json({ success: false, message: passwordValidationError });
+      }
+
+      user.password = password;
+    }
+
+    if (email !== undefined) {
+      user.email = email ? email.trim().toLowerCase() : undefined;
+    }
+
+    if (phone !== undefined) {
+      user.phone = phone ? phone.trim() : phone;
+    }
+
+    Object.assign(user, rest);
+    await user.save();
+
+    res.status(200).json({ success: true, data: sanitizeUser(user) });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ success: false, message: 'Phone number or email already exists' });
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 };

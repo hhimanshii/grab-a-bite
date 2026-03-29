@@ -1,95 +1,52 @@
-const admin = require('../config/firebase');
 const User = require('../models/userModel');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-default-secret-change-me';
+const PASSWORD_MIN_LENGTH = 6;
 
-/**
- * Verify Firebase OTP Token and Generate Custom Session Token
- * POST /api/v1/auth/verify-otp
- * Body: { idToken: string }
- */
-exports.verifyOtp = async (req, res) => {
-  try {
-    const { idToken } = req.body;
+const getRedirectUrl = (role) => {
+  if (role === 'superadmin') {
+    return '/admin/restaurants';
+  }
 
-    if (!idToken) {
-      return res.status(400).json({ success: false, message: "ID Token is required" });
-    }
+  if (['cashier', 'waiter', 'manager'].includes(role)) {
+    return '/pos';
+  }
 
-    // 1. Verify token using Firebase Admin SDK
-    // This ensures the token was actually issued by Firebase and is valid
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    const phone = decodedToken.phone_number;
+  return '/dashboard';
+};
 
-    if (!phone) {
-      return res.status(400).json({ success: false, message: "Phone number not found in token" });
-    }
+const sanitizeUser = (user) => {
+  const userObject = user.toObject ? user.toObject() : { ...user };
+  delete userObject.password;
+  delete userObject.__v;
+  return userObject;
+};
 
-    // 2. Find user in MongoDB by phone number
-    let user = await User.findOne({ phone });
+const buildAuthResponse = (user) => {
+  const sanitizedUser = sanitizeUser(user);
 
-    // Based on the spec, normal users/staff/owners are pre-created by the Superadmin/Owner 
-    // EXCEPT that the spec implies users log in with their phone number after creation. 
-    // If a user is not found, they might not have an account set up yet.
-    if (!user) {
-        // If we want to auto-register users as "customers", we would do it here.
-        // However, the spec only mentions superadmin, owner, managers, staff.
-        return res.status(404).json({ 
-            success: false, 
-            message: "User not found. Please contact the administrator to create an account." 
-        });
-    }
-
-    if (!user.isActive) {
-        return res.status(403).json({ success: false, message: "User account is disabled." });
-    }
-
-    // 3. Generate our own JWT for session management
-    const token = jwt.sign(
-      { 
-        id: user._id, 
-        role: user.role, 
-        restaurantId: user.restaurantId 
+  return {
+    token: jwt.sign(
+      {
+        id: user._id,
+        role: user.role,
+        restaurantId: user.restaurantId,
       },
       JWT_SECRET,
-      { expiresIn: '1d' } // JWT token (1 day)
-    );
+      { expiresIn: '1d' }
+    ),
+    user: sanitizedUser,
+    redirectUrl: getRedirectUrl(user.role),
+  };
+};
 
-    // 4. Return success response with token and redirect info based on role
-    let redirectUrl = '/dashboard'; // Default
-    if (user.role === 'superadmin') {
-      redirectUrl = '/admin/restaurants';
-    } else if (['cashier', 'waiter', 'manager'].includes(user.role)) {
-      redirectUrl = '/pos';
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Authentication successful",
-      data: {
-        token,
-        user: {
-          _id: user._id,
-          name: user.name,
-          phone: user.phone,
-          role: user.role,
-          restaurantId: user.restaurantId
-        },
-        redirectUrl
-      }
-    });
-
-  } catch (error) {
-    console.error("Auth Error:", error);
-    if (error.code === 'auth/id-token-expired') {
-        return res.status(401).json({ success: false, message: "Firebase token has expired" });
-    }
-    if (error.code === 'auth/argument-error') {
-        return res.status(401).json({ success: false, message: "Invalid token format" });
-    }
-    res.status(500).json({ success: false, message: "Authentication failed" });
+exports.validatePassword = (password) => {
+  if (!password || password.length < PASSWORD_MIN_LENGTH) {
+    return `Password must be at least ${PASSWORD_MIN_LENGTH} characters long`;
   }
+
+  return null;
 };
 
 /**
@@ -99,19 +56,19 @@ exports.verifyOtp = async (req, res) => {
  */
 exports.login = async (req, res) => {
   try {
-    const { login, password } = req.body;
+    const loginInput = req.body.login?.trim();
+    const password = req.body.password;
 
-    if (!login || !password) {
+    if (!loginInput || !password) {
       return res.status(400).json({ success: false, message: "Login and password are required" });
     }
 
-    // 1. Find user by email or phone
     const user = await User.findOne({
       $or: [
-        { email: login.toLowerCase() },
-        { phone: login }
+        { email: loginInput.toLowerCase() },
+        { phone: loginInput }
       ]
-    });
+    }).select('+password');
 
     if (!user) {
       return res.status(401).json({ success: false, message: "Invalid credentials" });
@@ -128,44 +85,53 @@ exports.login = async (req, res) => {
       return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 
-    // 3. Generate JWT
-    const token = jwt.sign(
-      { 
-        id: user._id, 
-        role: user.role, 
-        restaurantId: user.restaurantId 
-      },
-      JWT_SECRET,
-      { expiresIn: '1d' }
-    );
-
-    // 4. Return success
-    let redirectUrl = '/dashboard';
-    if (user.role === 'superadmin') {
-      redirectUrl = '/admin/restaurants';
-    } else if (['cashier', 'waiter', 'manager'].includes(user.role)) {
-      redirectUrl = '/pos';
-    }
-
     res.status(200).json({
       success: true,
       message: "Login successful",
-      data: {
-        token,
-        user: {
-          _id: user._id,
-          name: user.name,
-          phone: user.phone,
-          email: user.email,
-          role: user.role,
-          restaurantId: user.restaurantId
-        },
-        redirectUrl
-      }
+      data: buildAuthResponse(user)
     });
 
   } catch (error) {
     console.error("Login Error:", error);
     res.status(500).json({ success: false, message: "Login failed" });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required',
+      });
+    }
+
+    const passwordValidationError = exports.validatePassword(newPassword);
+    if (passwordValidationError) {
+      return res.status(400).json({ success: false, message: passwordValidationError });
+    }
+
+    const user = await User.findById(req.userId).select('+password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Current password is incorrect' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully',
+    });
+  } catch (error) {
+    console.error('Change Password Error:', error);
+    res.status(500).json({ success: false, message: 'Failed to change password' });
   }
 };

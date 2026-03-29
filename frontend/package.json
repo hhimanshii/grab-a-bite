@@ -4,23 +4,19 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "vite --configLoader native",
+    "build": "vite build --configLoader native",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview --configLoader native"
   },
   "dependencies": {
-    "@reduxjs/toolkit": "^2.9.1",
     "@base-ui/react": "^1.3.0",
+    "@reduxjs/toolkit": "^2.9.1",
     "@tailwindcss/vite": "^4.2.1",
     "axios": "^1.13.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
-    "firebase": "^12.10.0",
-    "jspdf": "^4.2.0",
     "lucide-react": "^0.577.0",
-    "next-themes": "^0.4.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-redux": "^9.2.0",

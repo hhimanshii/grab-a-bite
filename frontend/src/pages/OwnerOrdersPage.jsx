@@ -45,7 +45,7 @@ export default function OwnerOrdersPage() {
       })
       const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }))
       window.open(url)
-    } catch (error) {
+    } catch {
       toast.error("Failed to download receipt")
     }
   }

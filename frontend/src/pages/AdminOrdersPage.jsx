@@ -47,7 +47,7 @@ export default function AdminOrdersPage() {
       })
       const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }))
       window.open(url)
-    } catch (error) {
+    } catch {
       toast.error("Failed to download receipt")
     }
   }
@@ -65,6 +65,14 @@ export default function AdminOrdersPage() {
     return r ? r.name : "N/A"
   }
 
+  const restaurantItems = [
+    { value: "all", label: "All Restaurants" },
+    ...restaurants.map((restaurant) => ({
+      value: restaurant._id,
+      label: restaurant.name,
+    })),
+  ]
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -73,14 +81,18 @@ export default function AdminOrdersPage() {
 
       <div className="flex flex-col sm:flex-row gap-4 mb-4">
         <div className="w-full sm:w-[250px]">
-          <Select value={restaurantFilter} onValueChange={(value) => { if (value) setRestaurantFilter(value) }}>
+          <Select
+            items={restaurantItems}
+            value={restaurantFilter}
+            onValueChange={(value) => { if (value) setRestaurantFilter(value) }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="All Restaurants" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Restaurants</SelectItem>
+              <SelectItem value="all" label="All Restaurants">All Restaurants</SelectItem>
               {restaurants.map(r => (
-                <SelectItem key={r._id} value={r._id}>{r.name}</SelectItem>
+                <SelectItem key={r._id} value={r._id} label={r.name}>{r.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>

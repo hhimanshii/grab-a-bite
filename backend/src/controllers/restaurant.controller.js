@@ -1,5 +1,13 @@
 const Restaurant = require('../models/restaurantModel');
 const User = require('../models/userModel');
+const { validatePassword } = require('./auth.controller');
+
+const sanitizeUser = (user) => {
+  const userObject = user.toObject ? user.toObject() : { ...user };
+  delete userObject.password;
+  delete userObject.__v;
+  return userObject;
+};
 
 // ---------------- RESTAURANT PROFILE ----------------
 exports.getProfile = async (req, res) => {
@@ -47,15 +55,26 @@ exports.createStaff = async (req, res) => {
     const restaurantId = req.user.restaurantId;
     if (!restaurantId) return res.status(403).json({ success: false, message: 'Not linked to a restaurant' });
 
+    if (!req.body.password) {
+      return res.status(400).json({ success: false, message: 'Password is required' });
+    }
+
+    const passwordValidationError = validatePassword(req.body.password);
+    if (passwordValidationError) {
+      return res.status(400).json({ success: false, message: passwordValidationError });
+    }
+
     const newStaff = new User({
       ...req.body,
+      phone: req.body.phone?.trim(),
+      email: req.body.email ? req.body.email.trim().toLowerCase() : undefined,
       restaurantId // Lock the staff to the creator's restaurant
     });
 
     const user = await newStaff.save();
-    res.status(201).json({ success: true, data: user });
+    res.status(201).json({ success: true, data: sanitizeUser(user) });
   } catch (error) {
-    if (error.code === 11000) return res.status(400).json({ success: false, message: 'Phone number already exists' });
+    if (error.code === 11000) return res.status(400).json({ success: false, message: 'Phone number or email already exists' });
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -63,17 +82,35 @@ exports.createStaff = async (req, res) => {
 exports.updateStaff = async (req, res) => {
   try {
     const restaurantId = req.user.restaurantId;
-    
-    // Ensure the staff belongs to this owner's restaurant
-    const user = await User.findOneAndUpdate(
-      { _id: req.params.id, restaurantId },
-      req.body,
-      { new: true, runValidators: true }
-    );
+    const user = await User.findOne({ _id: req.params.id, restaurantId }).select('+password');
 
     if (!user) return res.status(404).json({ success: false, message: 'Staff member not found or access denied' });
-    res.status(200).json({ success: true, data: user });
+
+    const { password, email, phone, ...rest } = req.body;
+
+    if (password) {
+      const passwordValidationError = validatePassword(password);
+      if (passwordValidationError) {
+        return res.status(400).json({ success: false, message: passwordValidationError });
+      }
+
+      user.password = password;
+    }
+
+    if (email !== undefined) {
+      user.email = email ? email.trim().toLowerCase() : undefined;
+    }
+
+    if (phone !== undefined) {
+      user.phone = phone ? phone.trim() : phone;
+    }
+
+    Object.assign(user, rest);
+    await user.save();
+
+    res.status(200).json({ success: true, data: sanitizeUser(user) });
   } catch (error) {
+    if (error.code === 11000) return res.status(400).json({ success: false, message: 'Phone number or email already exists' });
     res.status(500).json({ success: false, message: error.message });
   }
 };

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Plus, Edit, Trash2, MoreHorizontal } from "lucide-react"
+import { Plus, Edit, Trash2, MoreHorizontal, Eye, EyeOff } from "lucide-react"
 import api from "@/lib/axios"
 
 import { Button } from "@/components/ui/button"
@@ -17,11 +17,16 @@ export default function OwnerStaffPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
-    role: "cashier",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    role: "",
   })
 
   useEffect(() => {
@@ -40,35 +45,72 @@ export default function OwnerStaffPage() {
     }
   }
 
+  const resetPasswordVisibility = () => {
+    setShowPassword(false)
+    setShowConfirmPassword(false)
+  }
+
+  const handleDialogOpenChange = (open, details) => {
+    if (open) {
+      setIsDialogOpen(true)
+      return
+    }
+
+    if (!details || details.reason === "close-press") {
+      setIsDialogOpen(false)
+      resetPasswordVisibility()
+    }
+  }
+
   const handleOpenDialog = (member) => {
     if (member) {
       setEditingId(member._id)
       setFormData({
         name: member.name || "",
         phone: member.phone || "",
-        role: member.role || "cashier",
+        email: member.email || "",
+        password: "",
+        confirmPassword: "",
+        role: member.role || "",
       })
     } else {
       setEditingId(null)
-      setFormData({ name: "", phone: "", role: "cashier" })
+      setFormData({ name: "", phone: "", email: "", password: "", confirmPassword: "", role: "" })
     }
+    resetPasswordVisibility()
     setIsDialogOpen(true)
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!formData.name || !formData.phone) return toast.error("Name and Phone are required")
+    if (!formData.role) return toast.error("Please select a role")
+    if (!editingId && !formData.password) return toast.error("Initial password is required")
+    if (formData.password && formData.password.length < 6) return toast.error("Password must be at least 6 characters long")
+    if (formData.password !== formData.confirmPassword) return toast.error("Password and confirm password must match")
 
     setIsSubmitting(true)
     try {
+      const payload = {
+        name: formData.name,
+        phone: formData.phone,
+        email: formData.email || null,
+        role: formData.role,
+      }
+
+      if (formData.password) {
+        payload.password = formData.password
+      }
+
       if (editingId) {
-        await api.put(`/restaurant/users/${editingId}`, formData)
+        await api.put(`/restaurant/users/${editingId}`, payload)
         toast.success("Staff updated successfully")
       } else {
-        await api.post("/restaurant/users", formData)
+        await api.post("/restaurant/users", payload)
         toast.success("Staff created successfully")
       }
       setIsDialogOpen(false)
+      resetPasswordVisibility()
       fetchStaff()
     } catch (error) {
       console.error(error)
@@ -93,7 +135,11 @@ export default function OwnerStaffPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight font-heading">Staff Management</h2>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={handleDialogOpenChange}
+          disablePointerDismissal
+        >
           <DialogTrigger
             render={
               <Button onClick={() => handleOpenDialog()} className="gap-2 font-outfit">
@@ -105,11 +151,13 @@ export default function OwnerStaffPage() {
             <DialogHeader>
               <DialogTitle>{editingId ? "Edit Staff" : "Add Staff"}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+            <form onSubmit={handleSubmit} className="space-y-4 pt-4" autoComplete="off">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
+                  name="staff-name"
+                  autoComplete="off"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Jane Smith"
@@ -119,10 +167,72 @@ export default function OwnerStaffPage() {
                 <Label htmlFor="phone">Phone Number (Login ID)</Label>
                 <Input
                   id="phone"
+                  name="staff-phone"
+                  autoComplete="off"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="e.g. 9876543210"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email (Optional)</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  name="staff-email"
+                  autoComplete="off"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="e.g. staff@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">
+                  {editingId ? "New Password (Optional)" : "Initial Password"}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    name="staff-password"
+                    autoComplete="new-password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder={editingId ? "Leave blank to keep current password" : "At least 6 characters"}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword((value) => !value)}
+                  >
+                    {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">
+                  {editingId ? "Confirm New Password" : "Confirm Password"}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    name="staff-confirm-password"
+                    autoComplete="new-password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    placeholder={editingId ? "Repeat the new password" : "Repeat the password"}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowConfirmPassword((value) => !value)}
+                  >
+                    {showConfirmPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="role">Role</Label>
@@ -134,6 +244,7 @@ export default function OwnerStaffPage() {
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="unselected" disabled label="Select role">Select role</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
                     <SelectItem value="cashier">Cashier</SelectItem>
                     <SelectItem value="waiter">Waiter</SelectItem>

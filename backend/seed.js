@@ -34,8 +34,9 @@ async function seed() {
         name: 'System Super Admin',
         phone: '+910000000000',
         role: 'superadmin',
+        password: 'admin123',
       });
-      console.log('Super Admin inserted with phone: +910000000000');
+      console.log('Super Admin inserted with phone: +910000000000 and password: admin123');
     } else {
       console.log('Super Admin already exists.');
     }
@@ -47,9 +48,10 @@ async function seed() {
         name: 'Demo Restaurant Owner',
         phone: '+911111111111',
         role: 'owner',
-        restaurantId: restaurant._id
+        restaurantId: restaurant._id,
+        password: 'owner123',
       });
-      console.log('Owner inserted with phone: +911111111111 and linked to restaurant');
+      console.log('Owner inserted with phone: +911111111111, password: owner123 and linked to restaurant');
     } else if (!owner.restaurantId) {
       owner.restaurantId = restaurant._id;
       await owner.save();
@@ -65,9 +67,10 @@ async function seed() {
         name: 'Demo Cashier',
         phone: '+912222222222',
         role: 'cashier',
-        restaurantId: restaurant._id
+        restaurantId: restaurant._id,
+        password: 'cashier123',
       });
-      console.log('Cashier inserted with phone: +912222222222 and linked to restaurant');
+      console.log('Cashier inserted with phone: +912222222222, password: cashier123 and linked to restaurant');
     } else if (!cashier.restaurantId) {
       cashier.restaurantId = restaurant._id;
       await cashier.save();

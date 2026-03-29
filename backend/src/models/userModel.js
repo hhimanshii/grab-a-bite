@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, unique: true, sparse: true }, // Optional email for login
   phone: { type: String, required: true, unique: true }, // Unique phone number
-  password: { type: String }, // Hashed password
+  password: { type: String, select: false }, // Hashed password
   role: { 
     type: String, 
     enum: ['superadmin', 'owner', 'manager', 'cashier', 'waiter'], 
@@ -23,6 +23,8 @@ const userSchema = new mongoose.Schema({
 
 // Hash password before saving
 userSchema.pre('save', async function() {
+  this.updatedAt = Date.now();
+
   if (!this.isModified('password') || !this.password) return;
   
   const salt = await bcrypt.genSalt(10);

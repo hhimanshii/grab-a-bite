@@ -32,10 +32,6 @@ export default function AdminReportsPage() {
     fetchRestaurants()
   }, [])
 
-  useEffect(() => {
-    fetchReportData()
-  }, [restaurantFilter, startDate, endDate])
-
   const fetchRestaurants = async () => {
     try {
       const res = await api.get("/admin/restaurants")
@@ -45,29 +41,41 @@ export default function AdminReportsPage() {
     }
   }
 
-  const fetchReportData = async () => {
-    try {
-      setLoading(true)
-      const queryParams = new URLSearchParams()
-      if (restaurantFilter !== "all") queryParams.append("restaurantId", restaurantFilter)
-      if (startDate) queryParams.append("startDate", startDate)
-      if (endDate) queryParams.append("endDate", endDate)
-      
-      const queryStr = queryParams.toString()
+  useEffect(() => {
+    const fetchReportData = async () => {
+      try {
+        setLoading(true)
+        const queryParams = new URLSearchParams()
+        if (restaurantFilter !== "all") queryParams.append("restaurantId", restaurantFilter)
+        if (startDate) queryParams.append("startDate", startDate)
+        if (endDate) queryParams.append("endDate", endDate)
 
-      const [salesRes, itemsRes] = await Promise.all([
-        api.get(`/admin/reports/sales?${queryStr}`),
-        api.get(`/admin/reports/top-items?${queryStr}`)
-      ])
+        const queryStr = queryParams.toString()
 
-      setSalesSummary(salesRes.data.data || salesRes.data || { totalOrders: 0, totalRevenue: 0 })
-      setTopItems(itemsRes.data.data || itemsRes.data || [])
-    } catch (error) {
-      toast.error(error.response?.data?.message || error.message || "Failed to fetch report data")
-    } finally {
-      setLoading(false)
+        const [salesRes, itemsRes] = await Promise.all([
+          api.get(`/admin/reports/sales?${queryStr}`),
+          api.get(`/admin/reports/top-items?${queryStr}`)
+        ])
+
+        setSalesSummary(salesRes.data.data || salesRes.data || { totalOrders: 0, totalRevenue: 0 })
+        setTopItems(itemsRes.data.data || itemsRes.data || [])
+      } catch (error) {
+        toast.error(error.response?.data?.message || error.message || "Failed to fetch report data")
+      } finally {
+        setLoading(false)
+      }
     }
-  }
+
+    fetchReportData()
+  }, [restaurantFilter, startDate, endDate])
+
+  const restaurantItems = [
+    { value: "all", label: "All Restaurants" },
+    ...restaurants.map((restaurant) => ({
+      value: restaurant._id,
+      label: restaurant.name,
+    })),
+  ]
 
   return (
     <div className="space-y-6">
@@ -78,14 +86,18 @@ export default function AdminReportsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-card p-4 rounded-lg border">
         <div className="space-y-2">
           <Label>Restaurant Filter</Label>
-          <Select value={restaurantFilter} onValueChange={(value) => { if (value) setRestaurantFilter(value) }}>
+          <Select
+            items={restaurantItems}
+            value={restaurantFilter}
+            onValueChange={(value) => { if (value) setRestaurantFilter(value) }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="All Restaurants" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Restaurants</SelectItem>
+              <SelectItem value="all" label="All Restaurants">All Restaurants</SelectItem>
               {restaurants.map(r => (
-                <SelectItem key={r._id} value={r._id}>{r.name}</SelectItem>
+                <SelectItem key={r._id} value={r._id} label={r.name}>{r.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>

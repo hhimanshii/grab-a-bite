@@ -1,7 +1,7 @@
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute"
 import { Navbar } from "@/components/layout/Navbar"
 import { Sidebar } from "@/components/layout/Sidebar"
-import { Store, Users, ShoppingBag, BarChart } from "lucide-react"
+import { Store, Users, ShoppingBag, BarChart, Settings } from "lucide-react"
 import { Outlet } from "react-router-dom"
 
 const adminLinks = [
@@ -9,6 +9,7 @@ const adminLinks = [
   { title: "Users", href: "/admin/users", icon: <Users className="h-4 w-4" /> },
   { title: "Orders", href: "/admin/orders", icon: <ShoppingBag className="h-4 w-4" /> },
   { title: "Reports", href: "/admin/reports", icon: <BarChart className="h-4 w-4" /> },
+  { title: "Settings", href: "/admin/settings", icon: <Settings className="h-4 w-4" /> },
 ]
 
 export function AdminLayout() {

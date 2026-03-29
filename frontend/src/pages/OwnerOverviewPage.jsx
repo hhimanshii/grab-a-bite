@@ -3,11 +3,11 @@ import api from "@/lib/axios"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { IndianRupee, ShoppingBag, Clock } from "lucide-react"
+import { IndianRupee, ShoppingBag } from "lucide-react"
 
 export default function OwnerOverviewPage() {
   const [salesData, setSalesData] = useState({ totalOrders: 0, totalRevenue: 0 })
-  const [recentOrders, setRecentOrders] = useState<any[]>([])
+  const [recentOrders, setRecentOrders] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function OwnerOverviewPage() {
         <h2 className="text-3xl font-bold tracking-tight font-heading">Overview</h2>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Today's Revenue</CardTitle>
@@ -61,17 +61,6 @@ export default function OwnerOverviewPage() {
           <CardContent>
             <div className="text-2xl font-bold">{(salesData.totalOrders || 0).toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">Updated just now</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="hidden lg:block">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Plan</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold capitalize">Active</div>
-            <p className="text-xs text-muted-foreground">Grab-a-Bite Partner</p>
           </CardContent>
         </Card>
       </div>

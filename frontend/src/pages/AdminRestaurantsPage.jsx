@@ -58,6 +58,17 @@ export default function AdminRestaurantsPage() {
     setIsDialogOpen(true)
   }
 
+  const handleDialogOpenChange = (open, details) => {
+    if (open) {
+      setIsDialogOpen(true)
+      return
+    }
+
+    if (!details || details.reason === "close-press") {
+      setIsDialogOpen(false)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!formData.name || !formData.phone) return toast.error("Name and Phone are required")
@@ -96,7 +107,11 @@ export default function AdminRestaurantsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight font-heading">Restaurants</h2>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={handleDialogOpenChange}
+          disablePointerDismissal
+        >
           <DialogTrigger
             render={
               <Button onClick={() => handleOpenDialog()} className="gap-2 font-outfit">
