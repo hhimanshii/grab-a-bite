@@ -1,19 +1,49 @@
-import { useState, useEffect } from "react"
-import { Plus, Edit, Trash2, MoreHorizontal, Image as ImageIcon } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Edit, MoreHorizontal, Plus, Trash2 } from "lucide-react"
 import api from "@/lib/axios"
+import { getMenuPlaceholder } from "@/lib/menuPlaceholders"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Card, CardContent } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
-import { Card, CardContent } from "@/components/ui/card"
 
-const CATEGORIES = ["Burgers", "Pizzas", "Drinks", "Sides", "Desserts"]
+const DEFAULT_CATEGORIES = ["Burgers", "Pizzas", "Drinks", "Sides", "Desserts"]
+
+const getDefaultFormData = () => ({
+  name: "",
+  category: "",
+  price: "",
+  description: "",
+  imageUrl: "",
+  isAvailable: true,
+  prepTime: "",
+})
+
+const PlaceholderCard = ({ item }) => {
+  const placeholder = getMenuPlaceholder(item)
+
+  return (
+    <div className={`flex h-full w-full flex-col justify-between bg-gradient-to-br ${placeholder.gradient} p-4`}>
+      <div className={`text-xs font-semibold uppercase tracking-[0.2em] ${placeholder.accent}`}>
+        Fresh Pick
+      </div>
+      <div className={placeholder.accent}>
+        <div className="text-3xl font-black tracking-tight">{placeholder.initials}</div>
+        <div className="mt-1 line-clamp-1 text-sm font-medium">{placeholder.name}</div>
+      </div>
+      <div className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${placeholder.badge}`}>
+        {placeholder.category}
+      </div>
+    </div>
+  )
+}
 
 export default function OwnerMenuPage() {
   const [menuItems, setMenuItems] = useState([])
@@ -21,16 +51,21 @@ export default function OwnerMenuPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [isCustomCategory, setIsCustomCategory] = useState(false)
+  const [formData, setFormData] = useState(getDefaultFormData)
 
-  const [formData, setFormData] = useState({
-    name: "",
-    category: "Burgers",
-    price: 0,
-    description: "",
-    imageUrl: "",
-    isAvailable: true,
-    prepTime: 15,
-  })
+  const categoryOptions = useMemo(() => {
+    const categories = new Set(DEFAULT_CATEGORIES)
+
+    menuItems.forEach((item) => {
+      const category = item.category?.trim()
+      if (category) {
+        categories.add(category)
+      }
+    })
+
+    return Array.from(categories).sort((left, right) => left.localeCompare(right))
+  }, [menuItems])
 
   useEffect(() => {
     fetchMenu()
@@ -48,24 +83,31 @@ export default function OwnerMenuPage() {
     }
   }
 
+  const resetForm = () => {
+    setEditingId(null)
+    setFormData(getDefaultFormData())
+    setIsCustomCategory(false)
+  }
+
   const handleOpenDialog = (item) => {
     if (item) {
+      const currentCategory = item.category?.trim() || ""
+
       setEditingId(item._id)
       setFormData({
         name: item.name || "",
-        category: item.category || "Burgers",
-        price: item.price || 0,
+        category: currentCategory,
+        price: item.price ?? "",
         description: item.description || "",
         imageUrl: item.imageUrl || item.image || "",
         isAvailable: item.isAvailable !== undefined ? item.isAvailable : true,
-        prepTime: item.prepTime || 15,
+        prepTime: item.prepTime ?? "",
       })
+      setIsCustomCategory(currentCategory ? !categoryOptions.includes(currentCategory) : false)
     } else {
-      setEditingId(null)
-      setFormData({
-        name: "", category: "Burgers", price: 0, description: "", imageUrl: "", isAvailable: true, prepTime: 15
-      })
+      resetForm()
     }
+
     setIsDialogOpen(true)
   }
 
@@ -77,23 +119,59 @@ export default function OwnerMenuPage() {
 
     if (!details || details.reason === "close-press") {
       setIsDialogOpen(false)
+      if (!editingId) {
+        resetForm()
+      }
     }
+  }
+
+  const handleCategorySelect = (value) => {
+    setIsCustomCategory(false)
+    setFormData((current) => ({ ...current, category: value }))
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!formData.name || formData.price <= 0) return toast.error("Name and valid price are required")
+
+    const normalizedName = formData.name.trim()
+    const normalizedCategory = formData.category.trim()
+    const normalizedPrice = Number(formData.price)
+
+    if (!normalizedName || !normalizedCategory || Number.isNaN(normalizedPrice) || normalizedPrice <= 0) {
+      return toast.error("Name, category, and valid price are required")
+    }
+
+    const payload = {
+      name: normalizedName,
+      category: normalizedCategory,
+      price: normalizedPrice,
+      description: formData.description.trim(),
+      imageUrl: formData.imageUrl.trim(),
+      isAvailable: formData.isAvailable,
+    }
+
+    if (formData.prepTime !== "" && formData.prepTime !== null) {
+      const prepTime = Number(formData.prepTime)
+
+      if (Number.isNaN(prepTime) || prepTime <= 0) {
+        return toast.error("Prep time must be a positive number")
+      }
+
+      payload.prepTime = prepTime
+    }
 
     setIsSubmitting(true)
     try {
       if (editingId) {
-        await api.put(`/menu/${editingId}`, formData)
+        await api.put(`/menu/${editingId}`, payload)
         toast.success("Menu item updated")
       } else {
-        await api.post("/menu", formData)
+        await api.post("/menu", payload)
         toast.success("Menu item created")
       }
+
       setIsDialogOpen(false)
+      resetForm()
       fetchMenu()
     } catch (error) {
       console.error(error)
@@ -105,6 +183,7 @@ export default function OwnerMenuPage() {
 
   const handleDelete = async (id) => {
     if (!confirm("Delete this menu item?")) return
+
     try {
       await api.delete(`/menu/${id}`)
       toast.success("Item deleted")
@@ -117,7 +196,7 @@ export default function OwnerMenuPage() {
   const toggleAvailability = async (item) => {
     try {
       await api.put(`/menu/${item._id}`, { ...item, isAvailable: !item.isAvailable })
-      toast.success(`Marked as ${!item.isAvailable ? 'Available' : 'Unavailable'}`)
+      toast.success(`Marked as ${!item.isAvailable ? "Available" : "Unavailable"}`)
       fetchMenu()
     } catch {
       toast.error("Failed to update availability")
@@ -128,17 +207,13 @@ export default function OwnerMenuPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight font-heading">Menu Management</h2>
-        <Dialog
-          open={isDialogOpen}
-          onOpenChange={handleDialogOpenChange}
-          disablePointerDismissal
-        >
+        <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange} disablePointerDismissal>
           <DialogTrigger
-            render={
+            render={(
               <Button onClick={() => handleOpenDialog()} className="gap-2 font-outfit">
                 <Plus className="h-4 w-4" /> Add Item
               </Button>
-            }
+            )}
           />
           <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -147,47 +222,121 @@ export default function OwnerMenuPage() {
             <form onSubmit={handleSubmit} className="space-y-4 pt-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Item Name</Label>
-                <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Smoky Paneer Burger"
+                />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="price">Price (₹)</Label>
-                  <Input id="price" type="number" min="0" value={formData.price} onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })} />
+                  <Label htmlFor="price">Price (Rs)</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    min="0"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    placeholder="299"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="category">Category</Label>
-                  <Select value={formData.category} onValueChange={(value) => { if (value) setFormData({ ...formData, category: value }) }}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder="Category" /></SelectTrigger>
-                    <SelectContent>
-                      {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Select
+                          value={!isCustomCategory && formData.category ? formData.category : undefined}
+                          onValueChange={handleCategorySelect}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categoryOptions.map((category) => (
+                              <SelectItem key={category} value={category}>{category}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        type="button"
+                        variant={isCustomCategory ? "default" : "outline"}
+                        className="shrink-0"
+                        onClick={() => {
+                          setIsCustomCategory(true)
+                          setFormData((current) => ({ ...current, category: "" }))
+                        }}
+                      >
+                        Add New
+                      </Button>
+                    </div>
+                    {isCustomCategory ? (
+                      <div className="space-y-2">
+                        <Input
+                          id="customCategory"
+                          value={formData.category}
+                          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                          placeholder="Enter category name"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-auto px-0 text-sm text-muted-foreground hover:text-foreground"
+                          onClick={() => {
+                            setIsCustomCategory(false)
+                            setFormData((current) => ({ ...current, category: "" }))
+                          }}
+                        >
+                          Choose from existing categories instead
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description (Optional)</Label>
-                <Textarea id="description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="imageUrl">Image URL (Cloudinary or any link)</Label>
-                <Input id="imageUrl" value={formData.imageUrl} onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })} placeholder="https://..." />
+                <Label htmlFor="imageUrl">Image URL (Optional)</Label>
+                <Input
+                  id="imageUrl"
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="https://..."
+                />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4 items-center mt-2 border p-3 rounded-md">
                 <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="isAvailable" 
-                    checked={formData.isAvailable} 
-                    onCheckedChange={(checked) => setFormData({ ...formData, isAvailable: checked === true })} 
+                  <Checkbox
+                    id="isAvailable"
+                    checked={formData.isAvailable}
+                    onCheckedChange={(checked) => setFormData({ ...formData, isAvailable: checked === true })}
                   />
                   <Label htmlFor="isAvailable" className="cursor-pointer">Currently Available</Label>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="prepTime" className="text-xs">Prep Time (mins)</Label>
-                  <Input id="prepTime" type="number" min="1" value={formData.prepTime} onChange={(e) => setFormData({ ...formData, prepTime: Number(e.target.value) })} className="h-8" />
+                  <Label htmlFor="prepTime" className="text-xs">Prep Time (mins, optional)</Label>
+                  <Input
+                    id="prepTime"
+                    type="number"
+                    min="1"
+                    value={formData.prepTime}
+                    onChange={(e) => setFormData({ ...formData, prepTime: e.target.value })}
+                    className="h-8"
+                    placeholder="15"
+                  />
                 </div>
               </div>
 
@@ -215,7 +364,7 @@ export default function OwnerMenuPage() {
                 {item.imageUrl || item.image ? (
                   <img src={(item.imageUrl || item.image) || ""} alt={item.name || "Menu item"} className="w-full h-full object-cover" />
                 ) : (
-                  <ImageIcon className="h-10 w-10 text-muted-foreground/50" />
+                  <PlaceholderCard item={item} />
                 )}
               </div>
               <CardContent className="p-4 space-y-2 relative">
@@ -224,32 +373,32 @@ export default function OwnerMenuPage() {
                     <h3 className="font-semibold line-clamp-1" title={item.name}>{item.name}</h3>
                     <p className="text-sm text-muted-foreground">{item.category}</p>
                   </div>
-                  <div className="font-bold">₹{item.price}</div>
+                  <div className="font-bold">Rs {item.price}</div>
                 </div>
-                
+
                 <p className="text-xs text-muted-foreground line-clamp-2 h-8">
                   {item.description || "No description provided."}
                 </p>
 
                 <div className="flex items-center justify-between pt-2">
                   <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id={`avail-${item._id}`} 
-                      checked={item.isAvailable} 
-                      onCheckedChange={() => toggleAvailability(item)} 
+                    <Checkbox
+                      id={`avail-${item._id}`}
+                      checked={item.isAvailable}
+                      onCheckedChange={() => toggleAvailability(item)}
                     />
                     <Label htmlFor={`avail-${item._id}`} className="text-xs cursor-pointer">
                       {item.isAvailable ? "Available" : "Sold Out"}
                     </Label>
                   </div>
-                  
+
                   <DropdownMenu>
                     <DropdownMenuTrigger
-                      render={
+                      render={(
                         <Button variant="ghost" className="h-8 w-8 p-0">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
-                      }
+                      )}
                     />
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => handleOpenDialog(item)}>

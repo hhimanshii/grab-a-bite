@@ -5,6 +5,37 @@ const User = require('./src/models/userModel');
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/grab-a-bite';
 
+async function ensureDemoUser({ name, phone, role, password, restaurantId }) {
+  let user = await User.findOne({ phone }).select('+password');
+
+  if (!user) {
+    user = new User({
+      name,
+      phone,
+      role,
+      password,
+      restaurantId,
+      isActive: true,
+    });
+
+    await user.save();
+    console.log(`${role} inserted with phone: ${phone} and password: ${password}`);
+    return;
+  }
+
+  user.name = name;
+  user.role = role;
+  user.password = password;
+  user.isActive = true;
+
+  if (restaurantId) {
+    user.restaurantId = restaurantId;
+  }
+
+  await user.save();
+  console.log(`${role} refreshed with phone: ${phone} and password: ${password}`);
+}
+
 async function seed() {
   try {
     console.log('Connecting to MongoDB...');
@@ -27,57 +58,30 @@ async function seed() {
       console.log('Dummy Restaurant created.');
     }
 
-    // Create Super Admin
-    const superAdminExists = await User.findOne({ phone: '+910000000000' });
-    if (!superAdminExists) {
-      await User.create({
-        name: 'System Super Admin',
-        phone: '+910000000000',
-        role: 'superadmin',
-        password: 'admin123',
-      });
-      console.log('Super Admin inserted with phone: +910000000000 and password: admin123');
-    } else {
-      console.log('Super Admin already exists.');
-    }
+    await ensureDemoUser({
+      name: 'System Super Admin',
+      phone: '+910000000000',
+      role: 'superadmin',
+      password: 'admin123',
+    });
 
     // Create a Dummy Owner linked to restaurant
-    let owner = await User.findOne({ phone: '+911111111111' });
-    if (!owner) {
-      owner = await User.create({
-        name: 'Demo Restaurant Owner',
-        phone: '+911111111111',
-        role: 'owner',
-        restaurantId: restaurant._id,
-        password: 'owner123',
-      });
-      console.log('Owner inserted with phone: +911111111111, password: owner123 and linked to restaurant');
-    } else if (!owner.restaurantId) {
-      owner.restaurantId = restaurant._id;
-      await owner.save();
-      console.log('Existing Owner linked to restaurant');
-    } else {
-      console.log('Owner already exists and linked.');
-    }
+    await ensureDemoUser({
+      name: 'Demo Restaurant Owner',
+      phone: '+911111111111',
+      role: 'owner',
+      restaurantId: restaurant._id,
+      password: 'owner123',
+    });
 
     // Create a Dummy Cashier linked to restaurant
-    let cashier = await User.findOne({ phone: '+912222222222' });
-    if (!cashier) {
-      cashier = await User.create({
-        name: 'Demo Cashier',
-        phone: '+912222222222',
-        role: 'cashier',
-        restaurantId: restaurant._id,
-        password: 'cashier123',
-      });
-      console.log('Cashier inserted with phone: +912222222222, password: cashier123 and linked to restaurant');
-    } else if (!cashier.restaurantId) {
-      cashier.restaurantId = restaurant._id;
-      await cashier.save();
-      console.log('Existing Cashier linked to restaurant');
-    } else {
-      console.log('Cashier already exists and linked.');
-    }
+    await ensureDemoUser({
+      name: 'Demo Cashier',
+      phone: '+912222222222',
+      role: 'cashier',
+      restaurantId: restaurant._id,
+      password: 'cashier123',
+    });
 
     console.log('Seeding complete!');
     process.exit(0);

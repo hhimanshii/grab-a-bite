@@ -7,17 +7,17 @@ const menuItemSchema = new mongoose.Schema({
     required: true,
     index: true 
   },
-  name: { type: String, required: true },
+  name: { type: String, required: true, trim: true },
   description: String,
-  price: { type: Number, required: true },
+  price: { type: Number, required: true, min: 0 },
   category: { 
     type: String, 
-    required: true, 
-    enum: ['Burgers', 'Pizzas', 'Drinks', 'Sides', 'Desserts'] 
+    required: true,
+    trim: true,
   },
   isAvailable: { type: Boolean, default: true }, // Crucial for POS logic
   imageUrl: { type: String }, // URL from Cloudinary
-  prepTime: { type: Number, default: 15 }, // in minutes
+  prepTime: { type: Number, min: 1 }, // in minutes
   createdAt: { type: Date, default: Date.now }
 });
 
